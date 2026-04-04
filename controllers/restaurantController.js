@@ -11,40 +11,34 @@ const generateOTP = () => {
   return crypto.randomInt(100000, 999999).toString();
 };
 
-// Configure email transporter for Brevo SMTP
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-  port: parseInt(process.env.SMTP_PORT) || 587,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  },
-  tls: {
-    rejectUnauthorized: false
-  }
-});
+const axios = require('axios'); // Make sure axios is installed
 
-// Verify email configuration
-transporter.verify((error, success) => {
-  if (error) {
-    console.log("❌ Brevo SMTP error:", error.message);
-  } else {
-    console.log("✅ Brevo SMTP server is ready to send messages");
-  }
-});
-
-
-
-
-
-// Send OTP email function
+// Send OTP email using Brevo REST API (Works on Render)
 const sendOtpEmail = async (email, otp, role) => {
-  const mailOptions = {
-    from: `"Restaurant Management" <${process.env.EMAIL_FROM || 'patilavdhut198@gmail.com'}>`,
-    to: email,
+  const apiKey = process.env.BREVO_API_KEY;
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || 'patilavdhut198@gmail.com';
+  
+  if (!apiKey) {
+    console.error("❌ BREVO_API_KEY not configured");
+    // For development, just log the OTP
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\n📧 DEVELOPMENT - OTP for ${email}: ${otp}\n`);
+      return true;
+    }
+    throw new Error("Email service not configured");
+  }
+  
+  const emailData = {
+    sender: {
+      name: "Restaurant Management",
+      email: senderEmail
+    },
+    to: [{
+      email: email,
+      name: "Customer"
+    }],
     subject: `Password Reset OTP for ${role} Account`,
-    html: `
+    htmlContent: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
         <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
         <p>Hello,</p>
@@ -61,14 +55,66 @@ const sendOtpEmail = async (email, otp, role) => {
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    console.log(`📧 Sending OTP to ${email} via Brevo API...`);
+    
+    const response = await axios.post('https://api.brevo.com/v3/smtp/email', emailData, {
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+    
     console.log(`✅ OTP email sent successfully to ${email}`);
     return true;
+    
   } catch (error) {
-    console.error("❌ Error sending OTP email:", error.message);
-    throw error;
+    console.error("❌ Brevo API Error:", error.response?.data || error.message);
+    
+    if (error.response?.status === 401) {
+      console.error("⚠️ Invalid API key. Please check your BREVO_API_KEY");
+    } else if (error.response?.status === 400) {
+      console.error("⚠️ Invalid request. Check sender email is verified in Brevo");
+    }
+    
+    throw new Error(`Failed to send OTP email: ${error.response?.data?.message || error.message}`);
   }
 };
+
+
+
+
+// Send OTP email function
+//const sendOtpEmail = async (email, otp, role) => {
+//  const mailOptions = {
+//    from: `"Restaurant Management" <${process.env.EMAIL_FROM || 'patilavdhut198@gmail.com'}>`,
+//    to: email,
+//    subject: `Password Reset OTP for ${role} Account`,
+//    html: `
+//      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+//        <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
+//        <p>Hello,</p>
+//        <p>We received a request to reset your password for your <strong>${role}</strong> account.</p>
+//        <div style="background-color: #f5f5f5; padding: 20px; text-align: center; border-radius: 5px; margin: 20px 0;">
+//          <h1 style="color: #4CAF50; font-size: 36px; letter-spacing: 5px; margin: 0;">${otp}</h1>
+//        </div>
+//        <p>This OTP is valid for <strong>5 minutes</strong>.</p>
+//        <p>If you didn't request this, please ignore this email.</p>
+//        <hr style="margin: 20px 0;">
+//        <p style="color: #666; font-size: 12px; text-align: center;">Restaurant Management System</p>
+//      </div>
+//    `
+//  };
+//
+//  try {
+//    await transporter.sendMail(mailOptions);
+//    console.log(`✅ OTP email sent successfully to ${email}`);
+//    return true;
+//  } catch (error) {
+//    console.error("❌ Error sending OTP email:", error.message);
+//    throw error;
+//  }
+//};
 
 // ==================== REGISTER RESTAURANT ====================
 exports.registerRestaurant = async (req, res) => {
