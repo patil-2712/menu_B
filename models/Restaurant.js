@@ -13,6 +13,7 @@ const RestaurantSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
+  ///////
   restaurantName: {
     type: String,
     required: true
