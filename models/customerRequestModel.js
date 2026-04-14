@@ -65,13 +65,20 @@ const customerRequestSchema = new mongoose.Schema({
   }
 });
 
+// Index for faster queries
 customerRequestSchema.index({ restaurantSlug: 1, status: 1, requestedAt: -1 });
 customerRequestSchema.index({ orderId: 1 });
 customerRequestSchema.index({ billNumber: 1 });
 
+// CORRECTED pre-save middleware
 customerRequestSchema.pre('save', function(next) {
   this.updatedAt = new Date();
-  next();
+  if (next) next();
 });
+
+// Alternative: Use function with proper async handling
+// customerRequestSchema.pre('save', async function() {
+//   this.updatedAt = new Date();
+// });
 
 module.exports = mongoose.model('CustomerRequest', customerRequestSchema);
