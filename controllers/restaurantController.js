@@ -278,6 +278,7 @@ exports.registerRestaurant = async (req, res) => {
 };
 
 // ==================== LOGIN ====================
+// ==================== LOGIN ====================
 exports.login = async (req, res) => {
   try {
     const { username, password, role } = req.body;
@@ -293,10 +294,11 @@ exports.login = async (req, res) => {
     
     switch(role) {
       case 'owner':
+        // ✅ UPDATED: Owner can login with email OR mobile number
         restaurant = await Restaurant.findOne({ 
           $or: [
             { email: trimmedUsername },
-            { mobile: trimmedUsername }
+            { mobile: trimmedUsername }  // ← ADD THIS LINE
           ] 
         });
         passwordField = 'password';
@@ -342,19 +344,16 @@ exports.login = async (req, res) => {
     if (!restaurantSlug) {
       console.log("WARNING: restaurantSlug is missing, generating one...");
       
-      // Generate slug from restaurant name
       restaurantSlug = restaurant.restaurantName
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '-')
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '');
       
-      // If still empty, use restaurant code
       if (!restaurantSlug) {
         restaurantSlug = restaurant.restaurantCode.toLowerCase().replace('rest-', '');
       }
       
-      // Save the generated slug to database
       restaurant.restaurantSlug = restaurantSlug;
       await restaurant.save();
       
@@ -383,7 +382,7 @@ exports.login = async (req, res) => {
         restaurantSlug: restaurantSlug,
         restaurantName: restaurant.restaurantName,
         role: role,
-        gstPercentage: restaurant.gstPercentage // Include GST percentage in response
+        gstPercentage: restaurant.gstPercentage
       },
       redirectUrl: `/${restaurantSlug}/setmenu`
     });
