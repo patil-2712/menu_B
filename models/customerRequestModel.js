@@ -4,11 +4,13 @@ const customerRequestSchema = new mongoose.Schema({
   orderId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order',
-    required: true
+    required: false,  // CHANGED: not required for requests without order
+    default: null
   },
   billNumber: {
     type: Number,
-    required: true
+    required: false,  // CHANGED: not required for requests without order
+    default: null
   },
   restaurantSlug: {
     type: String,
@@ -56,14 +58,12 @@ const customerRequestSchema = new mongoose.Schema({
     default: ''
   }
 }, {
-  timestamps: true  // This automatically handles createdAt and updatedAt
+  timestamps: true
 });
 
 // Indexes for faster queries
 customerRequestSchema.index({ restaurantSlug: 1, status: 1, requestedAt: -1 });
 customerRequestSchema.index({ orderId: 1 });
 customerRequestSchema.index({ billNumber: 1 });
-
-// NO pre-save middleware needed - timestamps: true handles it
 
 module.exports = mongoose.model('CustomerRequest', customerRequestSchema);

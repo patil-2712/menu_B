@@ -1,7 +1,7 @@
 const CustomerRequest = require('../models/customerRequestModel');
 const Order = require('../models/orderModel');
 
-// Create customer request
+// Create customer request (FIXED - allows null orderId and billNumber)
 exports.createRequest = async (req, res) => {
   try {
     const { 
@@ -15,30 +15,46 @@ exports.createRequest = async (req, res) => {
       requestMessage
     } = req.body;
 
-    console.log('📝 Creating customer request:', { orderId, billNumber, requestType });
+    console.log('📝 Creating customer request:', { orderId, billNumber, requestType, customerName, tableNumber });
 
-    if (!orderId || !billNumber || !restaurantSlug || !requestType) {
+    // FIXED: Only validate required fields, orderId and billNumber are optional
+    if (!restaurantSlug || !requestType || !customerName || !tableNumber) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields'
+        error: 'Missing required fields: restaurantSlug, requestType, customerName, tableNumber are required'
       });
     }
 
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        error: 'Order not found'
-      });
+    // If orderId is provided, verify order exists (optional)
+    let orderExists = false;
+    let orderCustomerName = customerName;
+    let orderTableNumber = tableNumber;
+    let orderBillNumber = billNumber;
+    let orderRestaurantCode = restaurantCode;
+
+    if (orderId && orderId !== 'null' && orderId !== null) {
+      try {
+        const order = await Order.findById(orderId);
+        if (order) {
+          orderExists = true;
+          orderCustomerName = order.customerName || customerName;
+          orderTableNumber = order.tableNumber || tableNumber;
+          orderBillNumber = order.billNumber || billNumber;
+          orderRestaurantCode = order.restaurantCode || restaurantCode;
+        }
+      } catch (err) {
+        console.log('Order not found, continuing without order reference');
+      }
     }
 
+    // Create new request (orderId and billNumber can be null/undefined)
     const newRequest = new CustomerRequest({
-      orderId,
-      billNumber,
+      orderId: orderId && orderId !== 'null' ? orderId : null,
+      billNumber: orderBillNumber,
       restaurantSlug,
-      restaurantCode: restaurantCode || order.restaurantCode,
-      customerName: customerName || order.customerName,
-      tableNumber: tableNumber || order.tableNumber,
+      restaurantCode: orderRestaurantCode || restaurantCode || restaurantSlug.toUpperCase(),
+      customerName: orderCustomerName || customerName,
+      tableNumber: orderTableNumber || tableNumber,
       requestType,
       requestMessage: requestMessage || getRequestMessage(requestType),
       status: 'pending'
@@ -73,7 +89,7 @@ const getRequestMessage = (type) => {
   }
 };
 
-// Get requests by restaurant
+// Get requests by restaurant (FIXED - handles null orderId)
 exports.getRequestsByRestaurant = async (req, res) => {
   try {
     const { restaurantSlug } = req.params;
