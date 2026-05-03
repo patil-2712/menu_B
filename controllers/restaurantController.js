@@ -1,18 +1,15 @@
-
 const Restaurant = require("../models/Restaurant");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const Otp = require("../models/Otp");
-const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const axios = require('axios');
 
 // Generate OTP function
 const generateOTP = () => {
   return crypto.randomInt(100000, 999999).toString();
 };
-
-const axios = require('axios');
 
 // Send OTP email using Brevo REST API (Works on Render)
 const sendOtpEmail = async (email, otp, role) => {
@@ -56,7 +53,6 @@ const sendOtpEmail = async (email, otp, role) => {
 
   try {
     console.log(`📧 Sending OTP to ${email} via Brevo API...`);
-    
     const response = await axios.post('https://api.brevo.com/v3/smtp/email', emailData, {
       headers: {
         'api-key': apiKey,
@@ -64,10 +60,8 @@ const sendOtpEmail = async (email, otp, role) => {
       },
       timeout: 15000
     });
-    
     console.log(`✅ OTP email sent successfully to ${email}`);
     return true;
-    
   } catch (error) {
     console.error("❌ Brevo API Error:", error.response?.data || error.message);
     throw new Error(`Failed to send OTP email: ${error.response?.data?.message || error.message}`);
@@ -417,7 +411,6 @@ exports.getRestaurantBySlug = async (req, res) => {
 };
 
 // ==================== UPDATE RESTAURANT ====================
-// ==================== UPDATE RESTAURANT ====================
 exports.updateRestaurant = async (req, res) => {
   try {
     const { restaurantSlug } = req.params;
@@ -445,7 +438,6 @@ exports.updateRestaurant = async (req, res) => {
       'restaurantName', 'mobile', 'email', 'city', 'state', 'country',
       'nearestPlace', 'ownerName', 'ownerMobile', 'gstNumber', 'gstPercentage',
       'foodLicense', 'kitchenUsername', 'billingUsername', 'latitude', 'longitude',
-      // NEW BANK DETAILS FIELDS
       'upiId', 'bankName', 'bankAccountHolderName', 'bankAccountNumber', 
       'bankIfscCode', 'panNumber', 'bankVerificationStatus', 'cashfreeStatus'
     ];
@@ -911,63 +903,6 @@ exports.resendOtp = async (req, res) => {
   }
 };
 
-// ==================== GET ALL RESTAURANTS ====================
-//exports.getAllRestaurants = async (req, res) => {
-//  try {
-//    const restaurants = await Restaurant.find({})
-//      .select('-password -kitchenPassword -billingPassword')
-//      .sort({ createdAt: -1 });
-//    
-//    console.log(`Found ${restaurants.length} restaurants`);
-//    
-//    res.json({
-//      count: restaurants.length,
-//      restaurants: restaurants
-//    });
-//  } catch (error) {
-//    console.error("Get All Restaurants Error:", error);
-//    res.status(500).json({ 
-//      message: "Server Error",
-//      error: error.message 
-//    });
-//  }
-//};
-
-// ==================== DELETE RESTAURANT ====================
-//exports.deleteRestaurant = async (req, res) => {
-//  try {
-//    const { restaurantSlug } = req.params;
-//    
-//    console.log("=== DELETE RESTAURANT ===");
-//    console.log("Restaurant Slug:", restaurantSlug);
-//    
-//    const restaurant = await Restaurant.findOne({ restaurantSlug });
-//    
-//    if (!restaurant) {
-//      return res.status(404).json({ message: "Restaurant not found" });
-//    }
-//    
-//    await Restaurant.deleteOne({ restaurantSlug });
-//    
-//    console.log("✅ Restaurant deleted successfully:", restaurant.restaurantName);
-//    
-//    res.json({
-//      message: "Restaurant deleted successfully",
-//      deletedRestaurant: {
-//        name: restaurant.restaurantName,
-//        slug: restaurant.restaurantSlug
-//      }
-//    });
-//  } catch (error) {
-//    console.error("Delete Restaurant Error:", error);
-//    res.status(500).json({ 
-//      message: "Server Error",
-//      error: error.message 
-//    });
-//  }
-//};
-// controllers/restaurantController.js
-
 // ==================== GET ALL RESTAURANTS (Master Admin) ====================
 exports.getAllRestaurants = async (req, res) => {
   try {
@@ -1063,10 +998,6 @@ exports.deleteRestaurant = async (req, res) => {
       });
     }
     
-    // Also delete associated menu items and orders? (Optional)
-    // await Menu.deleteMany({ restaurantSlug });
-    // await Order.deleteMany({ restaurantSlug });
-    
     await Restaurant.deleteOne({ restaurantSlug });
     
     console.log("✅ Restaurant deleted successfully:", restaurant.restaurantName);
@@ -1089,7 +1020,8 @@ exports.deleteRestaurant = async (req, res) => {
     });
   }
 };
-// At the end of restaurantController.js
+
+// ==================== EXPORTS ====================
 module.exports = {
   registerRestaurant,
   login,
@@ -1101,6 +1033,6 @@ module.exports = {
   verifyOtp,
   resetPassword,
   resendOtp,
-  getAllRestaurants,  // ← ADD THIS
-  deleteRestaurant     // ← ADD THIS
+  getAllRestaurants,
+  deleteRestaurant
 };
