@@ -496,18 +496,15 @@ exports.testEndpoint = async (req, res) => {
 };
 
 // =========== GET ORDERS BY RESTAURANT CODE ===========
-// controllers/orderController.js - Update the getOrdersByRestaurantCode function
-
-// =========== GET ORDERS BY RESTAURANT CODE (NO LIMIT) ===========
 exports.getOrdersByRestaurantCode = async (req, res) => {
   try {
     const { restaurantCode } = req.params;
-    console.log('🔍 Getting all orders for:', restaurantCode);
+    console.log('🔍 Getting orders for:', restaurantCode);
     
-    // Remove the .limit(50) to get ALL orders
     const orders = await Order.find({ restaurantCode })
-      .sort({ createdAt: -1 });  // Removed .limit(50)
-    
+      .sort({ createdAt: -1 })
+      .limit(50);
+
     console.log(`✅ Found ${orders.length} orders for ${restaurantCode}`);
     
     res.status(200).json(orders);
@@ -517,51 +514,6 @@ exports.getOrdersByRestaurantCode = async (req, res) => {
   }
 };
 
-
-
-// controllers/orderController.js - Add paginated version
-
-// =========== GET ORDERS BY RESTAURANT CODE WITH PAGINATION ===========
-exports.getOrdersByRestaurantCode = async (req, res) => {
-  try {
-    const { restaurantCode } = req.params;
-    const { page = 1, limit = 100, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
-    
-    console.log('🔍 Getting orders for:', restaurantCode);
-    console.log('Page:', page, 'Limit:', limit);
-    
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const sortDirection = sortOrder === 'desc' ? -1 : 1;
-    
-    const sortOptions = {};
-    sortOptions[sortBy] = sortDirection;
-    
-    const [orders, totalCount] = await Promise.all([
-      Order.find({ restaurantCode })
-        .sort(sortOptions)
-        .skip(skip)
-        .limit(parseInt(limit)),
-      Order.countDocuments({ restaurantCode })
-    ]);
-    
-    console.log(`✅ Found ${orders.length} orders (total: ${totalCount}) for ${restaurantCode}`);
-    
-    res.status(200).json({
-      success: true,
-      orders,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(totalCount / parseInt(limit)),
-        totalOrders: totalCount,
-        limit: parseInt(limit),
-        hasMore: skip + orders.length < totalCount
-      }
-    });
-  } catch (err) {
-    console.error('Error fetching restaurant orders:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
 // =========== GET ORDER BY RESTAURANT CODE AND BILL NUMBER ===========
 exports.getOrderByRestaurantAndBill = async (req, res) => {
   try {
