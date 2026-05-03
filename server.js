@@ -8,6 +8,7 @@ const restaurantRoutes = require("./routes/restaurantRoutes.js");
 const menuRoutes = require("./routes/menuRoutes.js");
 const orderRoutes = require("./routes/orderRoutes.js");
 const feedbackRoutes = require('./routes/feedbackRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const app = express();
 
 // Connect Database
@@ -60,7 +61,7 @@ app.use("/api/restaurant", restaurantRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/order", orderRoutes);
 app.use('/api/feedback', feedbackRoutes);
-
+app.use('/api/payments', paymentRoutes);
 // Test endpoints
 app.get("/api/test", (req, res) => {
   res.json({ 

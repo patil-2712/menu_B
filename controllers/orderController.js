@@ -230,7 +230,7 @@ exports.getRestaurantOrdersAnalytics = async (req, res) => {
   }
 };
 
-// =========== CREATE ORDER ===========
+// =========== CREATE ORDER (UPDATED - Added customerPhone and payment fields) ===========
 exports.createOrder = async (req, res) => {
   try {
     console.log('🟢 CREATE ORDER REQUEST RECEIVED');
@@ -240,75 +240,46 @@ exports.createOrder = async (req, res) => {
       restaurantCode,
       restaurantName,
       restaurantSlug,
-      customerName, 
+      customerName,
+      customerPhone,
+      customerEmail,
       tableNumber, 
       items,
       gstNumber,
-      gstPercentage = 18
+      gstPercentage = 18,
+      paymentMethod = 'pending',
+      paymentStatus = 'pending'
     } = req.body;
+
+    console.log('📞 Customer phone received:', customerPhone);
+    console.log('💳 Payment method received:', paymentMethod);
+    console.log('💰 Payment status received:', paymentStatus);
 
     const now = new Date();
     const date = req.body.date || now.toISOString().split('T')[0];
     const time = req.body.time || now.toTimeString().split(' ')[0];
 
-    // Validate required fields
     if (!restaurantCode) {
-      console.log('❌ Missing restaurantCode');
-      return res.status(400).json({ 
-        error: 'Restaurant code is required' 
-      });
+      return res.status(400).json({ error: 'Restaurant code is required' });
     }
 
     if (!items || items.length === 0) {
-      console.log('❌ No items in order');
-      return res.status(400).json({ 
-        error: 'Order must contain at least one item' 
-      });
+      return res.status(400).json({ error: 'Order must contain at least one item' });
     }
 
-    console.log('🔍 Getting next bill number for restaurant:', restaurantCode);
-    
+    // Get bill number
     let billNumber;
-    
-    // Method 1: Try using Counter
     try {
       const counter = await Counter.findOneAndUpdate(
         { _id: restaurantCode },
         { $inc: { sequence_value: 1 } },
-        { 
-          new: true, 
-          upsert: true, 
-          setDefaultsOnInsert: { 
-            _id: restaurantCode,
-            restaurantCode: restaurantCode,
-            sequence_value: 1 
-          } 
-        }
+        { new: true, upsert: true, setDefaultsOnInsert: { _id: restaurantCode, restaurantCode: restaurantCode, sequence_value: 1 } }
       );
-
       billNumber = counter.sequence_value;
       console.log(`📊 Counter-based bill number: ${billNumber}`);
-      
     } catch (counterError) {
-      console.log('⚠️ Counter method failed, using fallback...');
-      
-      const maxOrder = await Order.findOne({ restaurantCode })
-        .sort({ billNumber: -1 })
-        .select('billNumber')
-        .lean();
-      
+      const maxOrder = await Order.findOne({ restaurantCode }).sort({ billNumber: -1 }).select('billNumber').lean();
       billNumber = maxOrder ? maxOrder.billNumber + 1 : 1;
-      console.log(`📊 Fallback bill number: ${billNumber}`);
-      
-      try {
-        await Counter.findOneAndUpdate(
-          { _id: restaurantCode },
-          { $set: { sequence_value: billNumber + 1 } },
-          { upsert: true }
-        );
-      } catch (err) {
-        console.log('⚠️ Could not update counter, will retry next time');
-      }
     }
 
     // Calculate order totals
@@ -319,10 +290,8 @@ exports.createOrder = async (req, res) => {
     const sanitizedItems = items.map(item => {
       const itemTotal = Number(item.price) * Number(item.quantity);
       const itemGst = itemTotal * (gstPercentage / 100);
-      
       subtotal += itemTotal;
       totalGst += itemGst;
-
       return {
         itemId: item.itemId || new mongoose.Types.ObjectId(),
         name: item.name,
@@ -340,100 +309,190 @@ exports.createOrder = async (req, res) => {
     const total = subtotal + totalGst;
     
     console.log('💰 Calculated totals:', { subtotal, totalGst, total });
+    console.log('📞 Customer phone saved:', customerPhone);
+    console.log('💳 Payment method saved:', paymentMethod, 'Payment status:', paymentStatus);
 
-    // Determine initial order status
     const anyPending = sanitizedItems.some(item => item.itemStatus === 'pending');
-    const anyPreparing = sanitizedItems.some(item => item.itemStatus === 'preparing');
-    
-    let orderStatus = 'pending';
-    if (anyPreparing) {
-      orderStatus = 'preparing';
-    } else if (anyPending) {
-      orderStatus = 'pending';
-    }
+    let orderStatus = anyPending ? 'pending' : 'preparing';
 
-    // Create new order
     const newOrder = new Order({
       restaurantCode,
       restaurantName: restaurantName || restaurantCode,
       restaurantSlug: restaurantSlug || restaurantCode.toLowerCase(),
-      date: date,
-      time: time,
+      date, time,
       gstNumber: gstNumber || `GSTIN${restaurantCode}`,
-      gstPercentage: gstPercentage,
-      billNumber: billNumber,
+      gstPercentage,
+      billNumber,
       customerName: customerName || 'Guest',
+      customerPhone: customerPhone || null,
+      customerEmail: customerEmail || null,
       tableNumber: tableNumber || '0',
       items: sanitizedItems,
-      subtotal: subtotal,
+      subtotal,
       discount: 0,
       gstAmount: totalGst,
-      total: total,
-      status: orderStatus,
+      total,
+      orderStatus,
+      paymentMethod,
+      paymentStatus,
       nextRollNumber: rollNumber,
-      paymentStatus: 'pending'
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
 
-    console.log('💾 Saving order to database...');
+    await newOrder.save();
+    console.log('✅ Order saved successfully. ID:', newOrder._id);
+    console.log('✅ Customer phone saved in DB:', newOrder.customerPhone);
+    console.log('✅ Payment method saved in DB:', newOrder.paymentMethod);
     
-    try {
-      await newOrder.save();
-      console.log('✅ Order saved successfully. ID:', newOrder._id);
-      
-      res.status(201).json({ 
-        success: true,
-        message: 'Order created successfully', 
-        order: newOrder 
-      });
-      
-    } catch (saveError) {
-      console.error('❌ Error saving order:', saveError);
-      
-      if (saveError.code === 11000) {
-        console.log('⚠️ Duplicate bill number, retrying with next number...');
-        
-        newOrder.billNumber = billNumber + 1;
-        
-        try {
-          await newOrder.save();
-          console.log('✅ Order saved with new bill number:', newOrder.billNumber);
-          
-          await Counter.findOneAndUpdate(
-            { _id: restaurantCode },
-            { $set: { sequence_value: newOrder.billNumber + 1 } }
-          );
-          
-          res.status(201).json({ 
-            success: true,
-            message: 'Order created successfully', 
-            order: newOrder 
-          });
-          
-        } catch (retryError) {
-          console.error('❌ Retry also failed:', retryError);
-          res.status(400).json({ 
-            success: false,
-            error: 'Failed to create order due to duplicate bill number' 
-          });
-        }
-      } else {
-        res.status(500).json({ 
-          success: false,
-          error: 'Failed to save order to database' 
-        });
-      }
-    }
+    res.status(201).json({ success: true, message: 'Order created successfully', order: newOrder });
     
   } catch (err) {
-    console.error('❌ Unexpected error creating order:', err);
-    console.error('Error stack:', err.stack);
-    
-    res.status(500).json({ 
-      success: false,
-      error: 'Internal Server Error',
-      message: err.message 
-    });
+    console.error('❌ Error creating order:', err);
+    res.status(500).json({ success: false, error: 'Internal Server Error', message: err.message });
   }
+};
+
+// =========== GET ORDER BY ID ===========
+// =========== GET ORDER BY ID ===========
+// =========== GET ORDER BY ID ===========
+exports.getOrderById = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    console.log('🔍 Getting order by ID:', orderId);
+    
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      console.log('❌ Invalid ObjectId format:', orderId);
+      return res.status(400).json({ error: 'Invalid order ID format' });
+    }
+    
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    console.log('✅ Order found by ID:', order._id);
+    console.log('💰 Payment status:', order.paymentStatus);
+    res.status(200).json(order);
+  } catch (err) {
+    console.error('Error fetching order by ID:', err);
+    res.status(500).json({ error: 'Server error', message: err.message });
+  }
+};
+
+// =========== UPDATE ORDER ===========
+exports.updateOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const updateData = req.body;
+    updateData.updatedAt = new Date();
+    const order = await Order.findByIdAndUpdate(orderId, updateData, { new: true });
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    res.status(200).json({ success: true, order });
+  } catch (err) {
+    console.error('Error updating order:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// =========== ADD ITEM TO ORDER ===========
+exports.addItemToOrder = async (req, res) => {
+  try {
+    const { restaurantCode, billNumber } = req.params;
+    const item = req.body;
+    
+    const order = await Order.findOne({ restaurantCode, billNumber: Number(billNumber) });
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    
+    const itemTotal = parseFloat(item.price) * parseInt(item.quantity);
+    const newItem = {
+      itemId: new mongoose.Types.ObjectId(),
+      name: item.name,
+      quantity: parseInt(item.quantity),
+      price: parseFloat(item.price),
+      category: item.category || '',
+      type: item.type || 'Veg',
+      gstPercentage: item.gstPercentage || order.gstPercentage || 18,
+      total: itemTotal,
+      itemStatus: 'pending',
+      rollNumber: order.items.length + 1
+    };
+    
+    order.items.push(newItem);
+    order.subtotal += itemTotal;
+    order.gstAmount += itemTotal * (order.gstPercentage / 100);
+    order.total = order.subtotal + order.gstAmount;
+    order.paymentStatus = 'pending';
+    order.updatedAt = new Date();
+    await order.save();
+    
+    res.status(200).json({ success: true, message: 'Item added successfully', order });
+  } catch (err) {
+    console.error('Error adding item:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// =========== REMOVE ITEM FROM ORDER ===========
+exports.removeItemFromOrder = async (req, res) => {
+  try {
+    const { restaurantCode, billNumber, itemId } = req.params;
+    
+    const order = await Order.findOne({ restaurantCode, billNumber: Number(billNumber) });
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    
+    const itemIndex = order.items.findIndex(item => item._id.toString() === itemId || item.itemId.toString() === itemId);
+    if (itemIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Item not found' });
+    }
+    
+    const itemToRemove = order.items[itemIndex];
+    const itemTotal = itemToRemove.total || (itemToRemove.price * itemToRemove.quantity);
+    
+    order.items.splice(itemIndex, 1);
+    order.subtotal -= itemTotal;
+    order.gstAmount = order.subtotal * (order.gstPercentage / 100);
+    order.total = order.subtotal + order.gstAmount;
+    
+    if (order.items.length === 0) {
+      order.orderStatus = 'cancelled';
+      order.paymentStatus = 'pending';
+    }
+    
+    order.updatedAt = new Date();
+    await order.save();
+    
+    res.status(200).json({ success: true, message: 'Item removed successfully', order });
+  } catch (err) {
+    console.error('Error removing item:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+//// =========== GET ORDER BY RESTAURANT AND BILL ===========
+//exports.getOrderByRestaurantAndBill = async (req, res) => {
+//  try {
+//    const { restaurantCode, billNumber } = req.params;
+//    const order = await Order.findOne({ restaurantCode, billNumber: Number(billNumber) });
+//    if (!order) {
+//      return res.status(404).json({ error: `Order #${billNumber} not found` });
+//    }
+//    res.status(200).json(order);
+//  } catch (err) {
+//    console.error('Error fetching order:', err);
+//    res.status(500).json({ error: 'Server error' });
+//  }
+//};
+
+// =========== TEST ENDPOINT ===========
+exports.testEndpoint = async (req, res) => {
+  res.status(200).json({ message: 'Order Controller is working', timestamp: new Date().toISOString() });
 };
 
 // =========== GET ORDERS BY RESTAURANT CODE ===========

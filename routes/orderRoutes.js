@@ -1,79 +1,32 @@
+//
 //const express = require('express');
 //const router = express.Router();
-//const customerRequestController = require('../controllers/customerRequestController');
 //const orderController = require('../controllers/orderController');
+//const customerRequestController = require('../controllers/customerRequestController');
 //
-//// Test endpoint
+//// =========== EXISTING ROUTES (DO NOT MODIFY) ===========
 //router.get('/test', orderController.testEndpoint);
-//
-//// Restaurant verification and analytics
 //router.get('/verify/:restaurantSlug', orderController.verifyRestaurantAccess);
 //router.get('/restaurant/:restaurantSlug/analytics', orderController.getRestaurantOrdersAnalytics);
 //router.get('/restaurant/:restaurantSlug/all-orders', orderController.getAllOrdersByRestaurantSlug);
-//
-//// Create order
 //router.post('/', orderController.createOrder);
-//
-//// Get kitchen orders for restaurant (kitchen display)
 //router.get('/kitchen/:restaurantSlug', orderController.getKitchenOrders);
-//
-//// Get billing orders for restaurant (billing staff)
 //router.get('/billing/:restaurantSlug', orderController.getBillingOrders);
 //router.get('/billing/:restaurantSlug/stats', orderController.getBillingStats);
-//
-//// Get latest bill number for a restaurant
 //router.get('/:restaurantCode/latest-bill', orderController.getLatestBillNumber);
-//
-//// Get all orders for a restaurant
 //router.get('/:restaurantCode/orders', orderController.getOrdersByRestaurantCode);
-//
-//// Get today's orders for a restaurant
 //router.get('/:restaurantCode/today', orderController.getTodaysOrders);
-//
-//// Search orders
 //router.get('/:restaurantCode/search', orderController.searchOrders);
-//
-//// Get order statistics
 //router.get('/:restaurantCode/stats', orderController.getOrderStatistics);
-//
-//// Get specific order by restaurant and bill number
 //router.get('/:restaurantCode/:billNumber', orderController.getOrderByRestaurantAndBill);
-//
-//// Update order
 //router.put('/:restaurantCode/:billNumber', orderController.updateOrder);
-//
-//// Update order status
 //router.patch('/:restaurantCode/:billNumber/status', orderController.updateOrderStatus);
-//
-//// Update item status
 //router.patch('/:restaurantCode/:billNumber/item-status', orderController.updateItemStatus);
-//
-//// Apply discount to order (for billing staff)
 //router.post('/:restaurantCode/:billNumber/discount', orderController.applyOrderDiscount);
-//
-//// Add item to order (for billing staff)
 //router.post('/:restaurantCode/:billNumber/items', orderController.addItemToOrder);
-//
-//// Remove item from order (for billing staff)
 //router.delete('/:restaurantCode/:billNumber/items/:itemId', orderController.removeItemFromOrder);
-//
-//// Delete order
 //router.delete('/:restaurantCode/:billNumber', orderController.deleteOrder);
 //router.get('/verify-restaurant/:restaurantSlug', orderController.verifyRestaurantAccess);
-//
-//
-//
-//router.post('/customer-request', customerRequestController.createRequest);
-//router.get('/customer-requests/:restaurantSlug', customerRequestController.getRequestsByRestaurant);
-//router.get('/customer-requests/order/:orderId', customerRequestController.getRequestsByOrder);
-//router.put('/customer-request/:requestId', customerRequestController.updateRequestStatus);
-//router.delete('/customer-request/:requestId', customerRequestController.deleteRequest);
-//router.post('/customer-requests/bulk', customerRequestController.bulkUpdateRequests);
-//
-//
-/////errg
-////fg
-//// For backward compatibility - get all orders (admin only)
 //router.get('/', async (req, res) => {
 //  try {
 //    const Order = require('../models/orderModel');
@@ -84,13 +37,26 @@
 //  }
 //});
 //
+//// Add this with your other routes (around line 15)
+//router.get('/id/:orderId', orderController.getOrderById);
+//
+//// =========== NEW CUSTOMER REQUEST ROUTES (ADD THESE AT THE END) ===========
+//// Using different base path to avoid conflicts with existing routes
+//router.post('/customer-request/create', customerRequestController.createRequest);
+//router.get('/customer-request/list/:restaurantSlug', customerRequestController.getRequestsByRestaurant);
+//router.get('/customer-request/order/:orderId', customerRequestController.getRequestsByOrder);
+//router.put('/customer-request/update/:requestId', customerRequestController.updateRequestStatus);
+//router.delete('/customer-request/delete/:requestId', customerRequestController.deleteRequest);
+//router.post('/customer-request/bulk-update', customerRequestController.bulkUpdateRequests);
+//
 //module.exports = router;
+
 const express = require('express');
 const router = express.Router();
 const orderController = require('../controllers/orderController');
 const customerRequestController = require('../controllers/customerRequestController');
 
-// =========== EXISTING ROUTES (DO NOT MODIFY) ===========
+// =========== EXISTING ROUTES ===========
 router.get('/test', orderController.testEndpoint);
 router.get('/verify/:restaurantSlug', orderController.verifyRestaurantAccess);
 router.get('/restaurant/:restaurantSlug/analytics', orderController.getRestaurantOrdersAnalytics);
@@ -99,11 +65,19 @@ router.post('/', orderController.createOrder);
 router.get('/kitchen/:restaurantSlug', orderController.getKitchenOrders);
 router.get('/billing/:restaurantSlug', orderController.getBillingOrders);
 router.get('/billing/:restaurantSlug/stats', orderController.getBillingStats);
+
+// =========== IMPORTANT: ID ROUTE MUST COME BEFORE ANY PARAM ROUTES ===========
+// This MUST be before /:restaurantCode routes to avoid conflicts
+router.get('/id/:orderId', orderController.getOrderById);
+
+// =========== RESTAURANT CODE BASED ROUTES ===========
 router.get('/:restaurantCode/latest-bill', orderController.getLatestBillNumber);
 router.get('/:restaurantCode/orders', orderController.getOrdersByRestaurantCode);
 router.get('/:restaurantCode/today', orderController.getTodaysOrders);
 router.get('/:restaurantCode/search', orderController.searchOrders);
 router.get('/:restaurantCode/stats', orderController.getOrderStatistics);
+
+// =========== ORDER BY RESTAURANT CODE AND BILL NUMBER ===========
 router.get('/:restaurantCode/:billNumber', orderController.getOrderByRestaurantAndBill);
 router.put('/:restaurantCode/:billNumber', orderController.updateOrder);
 router.patch('/:restaurantCode/:billNumber/status', orderController.updateOrderStatus);
@@ -112,7 +86,9 @@ router.post('/:restaurantCode/:billNumber/discount', orderController.applyOrderD
 router.post('/:restaurantCode/:billNumber/items', orderController.addItemToOrder);
 router.delete('/:restaurantCode/:billNumber/items/:itemId', orderController.removeItemFromOrder);
 router.delete('/:restaurantCode/:billNumber', orderController.deleteOrder);
+
 router.get('/verify-restaurant/:restaurantSlug', orderController.verifyRestaurantAccess);
+
 router.get('/', async (req, res) => {
   try {
     const Order = require('../models/orderModel');
@@ -123,8 +99,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// =========== NEW CUSTOMER REQUEST ROUTES (ADD THESE AT THE END) ===========
-// Using different base path to avoid conflicts with existing routes
+// =========== CUSTOMER REQUEST ROUTES ===========
 router.post('/customer-request/create', customerRequestController.createRequest);
 router.get('/customer-request/list/:restaurantSlug', customerRequestController.getRequestsByRestaurant);
 router.get('/customer-request/order/:orderId', customerRequestController.getRequestsByOrder);
