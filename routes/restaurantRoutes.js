@@ -12,6 +12,8 @@ const {
   // Add these new imports
   requestOtp,
   verifyOtp,
+   getAllRestaurants,  // ← ADD THIS
+  deleteRestaurant ,
   resetPassword,
   resendOtp
 } = require("../controllers/restaurantController");
@@ -37,7 +39,8 @@ router.put("/update-passwords/:restaurantSlug", verifyToken, updatePasswords);
 
 // In restaurantRoutes.js - add these if needed
 
-
+router.get("/all", getAllRestaurants);  // ← ADD THIS ROUTE
+router.delete("/delete/:restaurantSlug", deleteRestaurant);  // ← ADD THIS ROUTE
 
 
 module.exports = router;
