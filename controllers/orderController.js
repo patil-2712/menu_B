@@ -496,14 +496,33 @@ exports.testEndpoint = async (req, res) => {
 };
 
 // =========== GET ORDERS BY RESTAURANT CODE ===========
+//exports.getOrdersByRestaurantCode = async (req, res) => {
+//  try {
+//    const { restaurantCode } = req.params;
+//    console.log('🔍 Getting orders for:', restaurantCode);
+//    
+//    const orders = await Order.find({ restaurantCode })
+//      .sort({ createdAt: -1 })
+//      .limit(50);
+//
+//    console.log(`✅ Found ${orders.length} orders for ${restaurantCode}`);
+//    
+//    res.status(200).json(orders);
+//  } catch (err) {
+//    console.error('Error fetching restaurant orders:', err);
+//    res.status(500).json({ error: 'Server error' });
+//  }
+//};
+// =========== GET ORDERS BY RESTAURANT CODE (UNLIMITED) ===========
 exports.getOrdersByRestaurantCode = async (req, res) => {
   try {
     const { restaurantCode } = req.params;
-    console.log('🔍 Getting orders for:', restaurantCode);
+    console.log('🔍 Getting ALL orders for:', restaurantCode);
     
+    // Remove .limit(50) to get ALL orders
     const orders = await Order.find({ restaurantCode })
-      .sort({ createdAt: -1 })
-      .limit(50);
+      .sort({ createdAt: -1 });
+      // .limit(50) - REMOVED THIS LINE
 
     console.log(`✅ Found ${orders.length} orders for ${restaurantCode}`);
     
@@ -513,7 +532,6 @@ exports.getOrdersByRestaurantCode = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
-
 // =========== GET ORDER BY RESTAURANT CODE AND BILL NUMBER ===========
 exports.getOrderByRestaurantAndBill = async (req, res) => {
   try {
