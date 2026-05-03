@@ -199,7 +199,50 @@ const RestaurantSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
-  }
+  },
+    upiId: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  bankName: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  bankAccountHolderName: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  bankAccountNumber: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  bankIfscCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: null
+  },
+  panNumber: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: null
+  },
+  bankVerificationStatus: {
+    type: String,
+    enum: ['NOT_SUBMITTED', 'PENDING', 'VERIFIED', 'REJECTED'],
+    default: 'NOT_SUBMITTED'
+  },
+  cashfreeStatus: {
+    type: String,
+    enum: ['NOT_CREATED', 'PENDING', 'ACTIVE', 'FAILED'],
+    default: 'NOT_CREATED'
+  },
+
 });
 
 // Create index for restaurantSlug for faster queries

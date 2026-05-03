@@ -1430,6 +1430,7 @@ exports.getRestaurantBySlug = async (req, res) => {
 };
 
 // ==================== UPDATE RESTAURANT ====================
+// ==================== UPDATE RESTAURANT ====================
 exports.updateRestaurant = async (req, res) => {
   try {
     const { restaurantSlug } = req.params;
@@ -1452,11 +1453,14 @@ exports.updateRestaurant = async (req, res) => {
       return res.status(404).json({ message: "Restaurant not found" });
     }
     
-    // Update ALL fields that are provided
+    // Update ALL fields including bank details
     const updateFields = [
       'restaurantName', 'mobile', 'email', 'city', 'state', 'country',
       'nearestPlace', 'ownerName', 'ownerMobile', 'gstNumber', 'gstPercentage',
-      'foodLicense', 'kitchenUsername', 'billingUsername', 'latitude', 'longitude'
+      'foodLicense', 'kitchenUsername', 'billingUsername', 'latitude', 'longitude',
+      // NEW BANK DETAILS FIELDS
+      'upiId', 'bankName', 'bankAccountHolderName', 'bankAccountNumber', 
+      'bankIfscCode', 'panNumber', 'bankVerificationStatus', 'cashfreeStatus'
     ];
     
     // Check for duplicate usernames if they're being updated
@@ -1505,8 +1509,10 @@ exports.updateRestaurant = async (req, res) => {
           restaurant[field] = updateData[field] ? parseFloat(updateData[field]) : null;
         } else if (field === 'latitude' || field === 'longitude') {
           restaurant[field] = updateData[field] ? parseFloat(updateData[field]) : null;
+        } else if (typeof updateData[field] === 'string') {
+          restaurant[field] = updateData[field].trim();
         } else {
-          restaurant[field] = updateData[field].toString().trim();
+          restaurant[field] = updateData[field];
         }
       }
     });
@@ -1537,7 +1543,11 @@ exports.updateRestaurant = async (req, res) => {
       .select('-password -kitchenPassword -billingPassword');
     
     console.log("✅ Restaurant updated successfully");
-    console.log("Updated Location:", updatedRestaurant.latitude, updatedRestaurant.longitude);
+    console.log("Updated Bank Details:", {
+      upiId: updatedRestaurant.upiId,
+      bankName: updatedRestaurant.bankName,
+      bankVerificationStatus: updatedRestaurant.bankVerificationStatus
+    });
     
     res.json({
       message: "Restaurant updated successfully",
