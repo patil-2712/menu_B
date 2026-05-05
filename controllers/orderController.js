@@ -380,22 +380,22 @@ exports.getOrderById = async (req, res) => {
   }
 };
 
-// =========== UPDATE ORDER ===========
-exports.updateOrder = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const updateData = req.body;
-    updateData.updatedAt = new Date();
-    const order = await Order.findByIdAndUpdate(orderId, updateData, { new: true });
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-    res.status(200).json({ success: true, order });
-  } catch (err) {
-    console.error('Error updating order:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
+//// =========== UPDATE ORDER ===========
+//exports.updateOrder = async (req, res) => {
+//  try {
+//    const { orderId } = req.params;
+//    const updateData = req.body;
+//    updateData.updatedAt = new Date();
+//    const order = await Order.findByIdAndUpdate(orderId, updateData, { new: true });
+//    if (!order) {
+//      return res.status(404).json({ error: 'Order not found' });
+//    }
+//    res.status(200).json({ success: true, order });
+//  } catch (err) {
+//    console.error('Error updating order:', err);
+//    res.status(500).json({ error: 'Server error' });
+//  }
+//};
 
 // =========== ADD ITEM TO ORDER ===========
 exports.addItemToOrder = async (req, res) => {
@@ -540,8 +540,7 @@ exports.getOrderByRestaurantAndBill = async (req, res) => {
   }
 };
 
-// =========== UPDATE ORDER ===========
-// =========== UPDATE ORDER ===========
+// =========== UPDATE ORDER (FIXED - Recalculates order status) ===========
 exports.updateOrder = async (req, res) => {
   try {
     const { restaurantCode, billNumber } = req.params;
@@ -562,20 +561,25 @@ exports.updateOrder = async (req, res) => {
       });
     }
 
-    console.log('✅ Existing order found:', existingOrder._id);
-    console.log('📊 Existing items count:', existingOrder.items.length);
-
     if (updateData.items && Array.isArray(updateData.items)) {
       console.log('🔄 Processing items update...');
       
-      let nextRollNumber = existingOrder.nextRollNumber || 1;
+      let nextRollNumber = 1;
       const updatedItems = [];
       
       // Process each item from the update
       updateData.items.forEach((newItem, index) => {
         console.log(`📝 Processing item ${index + 1}:`, newItem.name);
         
-        // Create item with proper structure
+        // Preserve existing item status if it exists in the old order
+        let itemStatus = 'pending';
+        const existingItem = existingOrder.items.find(
+          item => item.itemId?.toString() === newItem.itemId || item._id?.toString() === newItem.itemId
+        );
+        if (existingItem) {
+          itemStatus = existingItem.itemStatus;
+        }
+        
         const itemToAdd = {
           itemId: newItem.itemId || new mongoose.Types.ObjectId(),
           name: newItem.name,
@@ -585,7 +589,7 @@ exports.updateOrder = async (req, res) => {
           type: newItem.type || 'Veg',
           gstPercentage: Number(newItem.gstPercentage) || 18,
           total: Number(newItem.price) * Number(newItem.quantity),
-          itemStatus: newItem.itemStatus || 'pending',
+          itemStatus: itemStatus,
           rollNumber: index + 1
         };
         
@@ -597,18 +601,15 @@ exports.updateOrder = async (req, res) => {
         sum + (item.price * item.quantity), 0
       );
       
-      // Calculate GST based on individual item GST percentages
       const gstAmount = updatedItems.reduce((sum, item) => {
         return sum + (item.price * item.quantity * (item.gstPercentage || 18) / 100);
       }, 0);
       
       const total = subtotal + gstAmount;
       
-      // Get discount values from updateData (THIS WAS MISSING!)
       const discount = updateData.discount !== undefined ? Number(updateData.discount) : existingOrder.discount || 0;
       const discountType = updateData.discountType || existingOrder.discountType || 'amount';
       
-      // Calculate discounted total
       let discountedTotal = total;
       if (discount > 0) {
         if (discountType === 'percentage') {
@@ -621,7 +622,7 @@ exports.updateOrder = async (req, res) => {
         }
       }
       
-      // Determine order status based on items
+      // CRITICAL: Determine order status based on items
       const anyPending = updatedItems.some(item => item.itemStatus === 'pending');
       const anyPreparing = updatedItems.some(item => item.itemStatus === 'preparing');
       const allCompleted = updatedItems.every(item => item.itemStatus === 'completed');
@@ -629,18 +630,20 @@ exports.updateOrder = async (req, res) => {
       let orderStatus = existingOrder.status;
       if (anyPending) {
         orderStatus = 'pending';
+        console.log('📊 Has pending items → Order status: PENDING');
       } else if (anyPreparing) {
         orderStatus = 'preparing';
-      } else if (allCompleted) {
+        console.log('📊 Has preparing items → Order status: PREPARING');
+      } else if (allCompleted && updatedItems.length > 0) {
         orderStatus = 'completed';
+        console.log('📊 All items completed → Order status: COMPLETED');
       }
       
-      // Use status from updateData if provided (for billing staff)
+      // Use status from updateData if provided (for billing staff override)
       if (updateData.status) {
         orderStatus = updateData.status;
       }
       
-      // Create update object with ALL fields including discount
       const updateObject = {
         items: updatedItems,
         subtotal: Number(subtotal.toFixed(2)),
@@ -650,18 +653,14 @@ exports.updateOrder = async (req, res) => {
         discountType: discountType,
         discountedTotal: Number(discountedTotal.toFixed(2)),
         nextRollNumber: updatedItems.length + 1,
-        status: orderStatus,
+        orderStatus: orderStatus,  // Use orderStatus field
+        status: orderStatus,       // Also set status for compatibility
         customerName: updateData.customerName || existingOrder.customerName,
         tableNumber: updateData.tableNumber || existingOrder.tableNumber,
         updatedAt: new Date()
       };
       
-      console.log('💾 Saving order with discount:', {
-        discount: updateObject.discount,
-        discountType: updateObject.discountType,
-        discountedTotal: updateObject.discountedTotal,
-        status: updateObject.status
-      });
+      console.log('💾 Saving order with status:', orderStatus);
       
       const updatedOrder = await Order.findOneAndUpdate(
         { restaurantCode, billNumber: Number(billNumber) },
@@ -669,15 +668,8 @@ exports.updateOrder = async (req, res) => {
         { new: true, runValidators: true }
       );
       
-      console.log('✅ Order updated successfully with items');
-      console.log('📊 New order status:', updatedOrder.status);
-      console.log('📊 Updated items count:', updatedOrder.items.length);
-      console.log('💰 New totals:', {
-        subtotal: updatedOrder.subtotal,
-        total: updatedOrder.total,
-        discount: updatedOrder.discount,
-        discountedTotal: updatedOrder.discountedTotal
-      });
+      console.log('✅ Order updated successfully');
+      console.log('📊 New order status:', updatedOrder.orderStatus || updatedOrder.status);
       
       res.status(200).json({ 
         message: 'Order updated successfully', 
@@ -685,36 +677,17 @@ exports.updateOrder = async (req, res) => {
       });
       
     } else {
-      // For non-items update, just update the provided fields
+      // For non-items update
       const updateObject = {
         ...updateData,
         updatedAt: new Date()
       };
-      
-      // Make sure discount fields are included
-      if (updateData.discount !== undefined) {
-        updateObject.discount = Number(updateData.discount);
-      }
-      if (updateData.discountType) {
-        updateObject.discountType = updateData.discountType;
-      }
-      if (updateData.discountedTotal !== undefined) {
-        updateObject.discountedTotal = Number(updateData.discountedTotal);
-      }
       
       const updatedOrder = await Order.findOneAndUpdate(
         { restaurantCode, billNumber: Number(billNumber) },
         { $set: updateObject },
         { new: true, runValidators: true }
       );
-      
-      console.log('✅ Order updated successfully (non-items update)');
-      console.log('📊 Updated fields:', {
-        discount: updatedOrder.discount,
-        discountType: updatedOrder.discountType,
-        discountedTotal: updatedOrder.discountedTotal,
-        status: updatedOrder.status
-      });
       
       res.status(200).json({ 
         message: 'Order updated successfully', 
@@ -724,15 +697,6 @@ exports.updateOrder = async (req, res) => {
     
   } catch (err) {
     console.error('❌ Error updating order:', err);
-    console.error('Error stack:', err.stack);
-    
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ 
-        error: 'Validation Error',
-        details: err.errors 
-      });
-    }
-    
     res.status(500).json({ 
       error: 'Failed to update order',
       message: err.message 
@@ -1228,7 +1192,7 @@ exports.applyOrderDiscount = async (req, res) => {
   }
 };
 
-// =========== ADD ITEM TO ORDER ===========
+// =========== ADD ITEM TO ORDER (FIXED - Updates order status) ===========
 exports.addItemToOrder = async (req, res) => {
   try {
     const { restaurantCode, billNumber } = req.params;
@@ -1267,7 +1231,7 @@ exports.addItemToOrder = async (req, res) => {
       type: item.type || 'Veg',
       gstPercentage: item.gstPercentage || order.gstPercentage || 18,
       total: itemTotal,
-      itemStatus: 'pending',
+      itemStatus: 'pending',  // New items always start as pending
       rollNumber: order.items.length + 1
     };
     
@@ -1278,21 +1242,17 @@ exports.addItemToOrder = async (req, res) => {
     order.gstAmount += itemGst;
     order.total = order.subtotal + order.gstAmount;
     
-    // Recalculate order status based on ALL items
-    const allItems = order.items;
-    const anyPending = allItems.some(item => item.itemStatus === 'pending');
-    const anyPreparing = allItems.some(item => item.itemStatus === 'preparing');
-    const allCompleted = allItems.every(item => item.itemStatus === 'completed');
+    // CRITICAL: Reset order status to 'pending' because there's a new pending item
+    const anyPending = order.items.some(item => item.itemStatus === 'pending');
+    const anyPreparing = order.items.some(item => item.itemStatus === 'preparing');
+    const allCompleted = order.items.every(item => item.itemStatus === 'completed');
     
-    // Order status logic:
-    // - If ANY item is pending -> order is pending
-    // - Else if ANY item is preparing -> order is preparing
-    // - Else if ALL items are completed -> order is completed
     if (anyPending) {
       order.status = 'pending';
+      console.log('🔄 New pending item added → Order status reset to PENDING');
     } else if (anyPreparing) {
       order.status = 'preparing';
-    } else if (allCompleted) {
+    } else if (allCompleted && order.items.length > 0) {
       order.status = 'completed';
     }
     
@@ -1312,7 +1272,6 @@ exports.addItemToOrder = async (req, res) => {
     
     console.log('✅ Item added successfully');
     console.log('📊 New order status:', order.status);
-    console.log('📊 Item statuses:', allItems.map(i => ({ name: i.name, status: i.itemStatus })));
     
     res.status(200).json({
       success: true,
