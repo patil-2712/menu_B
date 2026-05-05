@@ -854,7 +854,7 @@ exports.updateOrderStatus = async (req, res) => {
 
 
 
-// =========== UPDATE ITEM STATUS (FIXED - Using orderStatus field) ===========
+// =========== UPDATE ITEM STATUS (COMPLETELY FIXED) ===========
 exports.updateItemStatus = async (req, res) => {
   try {
     const { restaurantCode, billNumber } = req.params;
@@ -878,8 +878,8 @@ exports.updateItemStatus = async (req, res) => {
       });
     }
 
-    console.log('📊 Current order status (orderStatus):', order.orderStatus);
-    console.log('📊 Current items:', order.items.map(i => ({ name: i.name, status: i.itemStatus })));
+    console.log('📊 Current orderStatus:', order.orderStatus);
+    console.log('📊 Current items statuses:', order.items.map(i => ({ name: i.name, status: i.itemStatus })));
 
     // Find and update the specific item
     let itemFound = false;
@@ -897,37 +897,44 @@ exports.updateItemStatus = async (req, res) => {
       return res.status(404).json({ error: 'Item not found in order' });
     }
 
-    // Check ALL items status
+    // CRITICAL: Recalculate order status based on ALL items
     const allItems = order.items;
-    const pendingItems = allItems.filter(item => item.itemStatus === 'pending');
-    const preparingItems = allItems.filter(item => item.itemStatus === 'preparing');
-    const completedItems = allItems.filter(item => item.itemStatus === 'completed');
+    const pendingCount = allItems.filter(item => item.itemStatus === 'pending').length;
+    const preparingCount = allItems.filter(item => item.itemStatus === 'preparing').length;
+    const completedCount = allItems.filter(item => item.itemStatus === 'completed').length;
     
     console.log('📊 Status counts:', {
-      pending: pendingItems.length,
-      preparing: preparingItems.length,
-      completed: completedItems.length,
+      pending: pendingCount,
+      preparing: preparingCount,
+      completed: completedCount,
       total: allItems.length
     });
 
-    // Determine new order status (using orderStatus field)
-    let newStatus = order.orderStatus;
+    // Determine new order status
+    let newOrderStatus = order.orderStatus;
     
-    if (pendingItems.length > 0) {
-      newStatus = 'pending';
+    // IMPORTANT: If there are ANY pending items, order MUST be pending
+    if (pendingCount > 0) {
+      newOrderStatus = 'pending';
       console.log('⏳ Has pending items → Order status: PENDING');
-    } else if (preparingItems.length > 0) {
-      newStatus = 'preparing';
+    } 
+    // If no pending items but has preparing items
+    else if (preparingCount > 0) {
+      newOrderStatus = 'preparing';
       console.log('👨‍🍳 Has preparing items → Order status: PREPARING');
-    } else if (completedItems.length === allItems.length && allItems.length > 0) {
-      newStatus = 'completed';
+    }
+    // If all items are completed
+    else if (completedCount === allItems.length && allItems.length > 0) {
+      newOrderStatus = 'completed';
       console.log('✅ ALL items completed → Order status: COMPLETED');
     }
 
-    // Update order status if changed (using orderStatus)
-    if (newStatus !== order.orderStatus) {
-      order.orderStatus = newStatus;
-      console.log(`🔄 Order status changed from ${order.orderStatus} to ${newStatus}`);
+    // Update order status if changed
+    if (newOrderStatus !== order.orderStatus) {
+      order.orderStatus = newOrderStatus;
+      // Also set status field for frontend compatibility
+      order.status = newOrderStatus;
+      console.log(`🔄 Order status changed from ${order.orderStatus} to ${newOrderStatus}`);
     }
 
     order.updatedAt = new Date();
@@ -936,7 +943,7 @@ exports.updateItemStatus = async (req, res) => {
     const savedOrder = await order.save();
     
     console.log('💾 Order saved! Final orderStatus:', savedOrder.orderStatus);
-    console.log('📊 Final items:', savedOrder.items.map(i => ({ name: i.name, status: i.itemStatus })));
+    console.log('📊 Final items statuses:', savedOrder.items.map(i => ({ name: i.name, status: i.itemStatus })));
 
     // Return success with updated order
     res.status(200).json({ 
@@ -946,7 +953,7 @@ exports.updateItemStatus = async (req, res) => {
         _id: savedOrder._id,
         billNumber: savedOrder.billNumber,
         orderStatus: savedOrder.orderStatus,
-        status: savedOrder.orderStatus, // Also send as status for frontend compatibility
+        status: savedOrder.orderStatus,
         items: savedOrder.items.map(item => ({
           _id: item._id,
           name: item.name,
