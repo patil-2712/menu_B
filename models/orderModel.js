@@ -144,11 +144,11 @@ const orderSchema = new mongoose.Schema({
   },
   
   // Payment Information
-  paymentMethod: {
-    type: String,
-    enum: ['upi', 'cash', 'card', 'pending', 'not_initiated'],
-    default: 'pending'
-  },
+ paymentMethod: {
+  type: String,
+  enum: ['upi', 'cash', 'card', 'upi_counter', 'pending', 'not_initiated'],
+  default: 'pending'
+},
   paymentStatus: {
     type: String, 
     enum: ['pending', 'paid', 'failed', 'refunded', 'not_initiated'],

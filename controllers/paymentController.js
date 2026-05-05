@@ -327,6 +327,58 @@ exports.createUpiIntentPayment = async (req, res) => {
   }
 };
 
+
+// =========== MARK UPI COUNTER PAYMENT ===========
+exports.markUpiCounterPayment = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { amount } = req.body;
+    
+    console.log('💳 Recording UPI counter payment for order:', orderId);
+    
+    const order = await Order.findByIdAndUpdate(
+      orderId,
+      {
+        paymentMethod: 'upi_counter',
+        paymentStatus: 'pending',
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
+    
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    
+    console.log(`✅ UPI counter payment method set to: ${order.paymentMethod}`);
+    console.log(`✅ Payment status: ${order.paymentStatus}`);
+    
+    const payment = await Payment.findOneAndUpdate(
+      { orderId: order._id },
+      {
+        orderId: order._id,
+        restaurantCode: order.restaurantCode,
+        billNumber: order.billNumber,
+        amount: amount || order.total,
+        paymentStatus: 'pending',
+        paymentMethod: 'upi_counter',
+        transactionId: `UPI_COUNTER_${order.billNumber}_${Date.now()}`,
+        updatedAt: new Date()
+      },
+      { upsert: true, new: true }
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'UPI counter payment method selected. Payment pending confirmation.',
+      order: order
+    });
+    
+  } catch (error) {
+    console.error('❌ Error recording UPI counter payment:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
 // =========== RAZORPAY WEBHOOK (For automatic payment updates) ===========
 exports.razorpayWebhook = async (req, res) => {
   try {

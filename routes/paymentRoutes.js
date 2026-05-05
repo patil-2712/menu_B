@@ -27,5 +27,6 @@ router.get('/verify/:razorpayPaymentId', paymentController.verifyUpiPayment);
 router.post('/webhook', express.raw({ type: 'application/json' }), paymentController.razorpayWebhook);
 // Add this route
 router.post('/cash-confirm/:orderId', paymentController.confirmCashPayment);
-
+// Add this line with other routes
+router.post('/upi-counter/:orderId', paymentController.markUpiCounterPayment);
 module.exports = router;

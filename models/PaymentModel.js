@@ -35,10 +35,10 @@ const paymentSchema = new mongoose.Schema({
     default: 'not_initiated'
   },
   paymentMethod: {
-    type: String,
-    enum: ['upi', 'card', 'cash', 'other'],
-    default: 'other'
-  },
+  type: String,
+  enum: ['upi', 'card', 'cash', 'upi_counter', 'other'],
+  default: 'other'
+},
   transactionId: String,
   createdAt: {
     type: Date,
