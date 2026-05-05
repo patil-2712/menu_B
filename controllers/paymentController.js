@@ -379,6 +379,54 @@ exports.markUpiCounterPayment = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+
+
+
+
+
+
+
+// =========== CONFIRM COUNTER UPI PAYMENT (FOR STAFF) ===========
+exports.confirmUpiCounterPayment = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    
+    if (order.paymentMethod !== 'upi_counter') {
+      return res.status(400).json({ success: false, error: 'Order is not a Counter UPI payment' });
+    }
+    
+    order.paymentStatus = 'paid';
+    order.paymentCompletedAt = new Date();
+    await order.save();
+    
+    // Update payment record
+    await Payment.findOneAndUpdate(
+      { orderId: order._id },
+      { paymentStatus: 'paid', updatedAt: new Date() }
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'Counter UPI payment confirmed',
+      order: order
+    });
+    
+  } catch (error) {
+    console.error('Error confirming Counter UPI payment:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+
+
+
+
 // =========== RAZORPAY WEBHOOK (For automatic payment updates) ===========
 exports.razorpayWebhook = async (req, res) => {
   try {

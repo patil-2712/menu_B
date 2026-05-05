@@ -22,7 +22,8 @@ router.post('/create-upi-intent', paymentController.createUpiIntentPayment);
 
 // Verify UPI payment status (for polling)
 router.get('/verify/:razorpayPaymentId', paymentController.verifyUpiPayment);
-
+// Confirm Counter UPI Payment (for staff)
+router.post('/upi-counter-confirm/:orderId', paymentController.confirmUpiCounterPayment);
 // Webhook for Razorpay (for automatic payment updates)
 router.post('/webhook', express.raw({ type: 'application/json' }), paymentController.razorpayWebhook);
 // Add this route
