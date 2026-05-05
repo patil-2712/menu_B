@@ -890,7 +890,7 @@ exports.updateOrderStatus = async (req, res) => {
 
 
 
-// =========== UPDATE ITEM STATUS (FIXED) ===========
+// =========== UPDATE ITEM STATUS (FIXED - Using orderStatus field) ===========
 exports.updateItemStatus = async (req, res) => {
   try {
     const { restaurantCode, billNumber } = req.params;
@@ -902,6 +902,7 @@ exports.updateItemStatus = async (req, res) => {
       return res.status(400).json({ error: 'Invalid item status value' });
     }
 
+    // Find the order
     const order = await Order.findOne({ 
       restaurantCode, 
       billNumber: Number(billNumber) 
@@ -913,8 +914,8 @@ exports.updateItemStatus = async (req, res) => {
       });
     }
 
-    console.log('📊 Current order status:', order.status);
-    console.log('📊 Current items statuses:', order.items.map(i => ({ name: i.name, status: i.itemStatus })));
+    console.log('📊 Current order status (orderStatus):', order.orderStatus);
+    console.log('📊 Current items:', order.items.map(i => ({ name: i.name, status: i.itemStatus })));
 
     // Find and update the specific item
     let itemFound = false;
@@ -923,7 +924,7 @@ exports.updateItemStatus = async (req, res) => {
       if (item._id.toString() === itemId || item.itemId.toString() === itemId) {
         item.itemStatus = itemStatus;
         itemFound = true;
-        console.log(`✅ Updated item ${item.name} to ${itemStatus}`);
+        console.log(`✅ Updated item "${item.name}" to ${itemStatus}`);
         break;
       }
     }
@@ -932,52 +933,63 @@ exports.updateItemStatus = async (req, res) => {
       return res.status(404).json({ error: 'Item not found in order' });
     }
 
-    // Recalculate order status based on ALL items
+    // Check ALL items status
     const allItems = order.items;
-    const anyPending = allItems.some(item => item.itemStatus === 'pending');
-    const anyPreparing = allItems.some(item => item.itemStatus === 'preparing');
-    const allCompleted = allItems.every(item => item.itemStatus === 'completed');
-
-    console.log('📊 Status check:', { anyPending, anyPreparing, allCompleted });
-
-    // Order status logic:
-    // - If ANY item is pending -> order status is 'pending' (highest priority)
-    // - Else if ANY item is preparing -> order status is 'preparing'
-    // - Else if ALL items are completed -> order status is 'completed'
-    let newOrderStatus = order.status;
+    const pendingItems = allItems.filter(item => item.itemStatus === 'pending');
+    const preparingItems = allItems.filter(item => item.itemStatus === 'preparing');
+    const completedItems = allItems.filter(item => item.itemStatus === 'completed');
     
-    if (allCompleted) {
-      newOrderStatus = 'completed';
-      console.log('✅ All items completed! Setting order status to COMPLETED');
-    } else if (anyPending) {
-      newOrderStatus = 'pending';
-      console.log('⏳ Some items pending, setting order status to PENDING');
-    } else if (anyPreparing) {
-      newOrderStatus = 'preparing';
-      console.log('👨‍🍳 Some items preparing, setting order status to PREPARING');
+    console.log('📊 Status counts:', {
+      pending: pendingItems.length,
+      preparing: preparingItems.length,
+      completed: completedItems.length,
+      total: allItems.length
+    });
+
+    // Determine new order status (using orderStatus field)
+    let newStatus = order.orderStatus;
+    
+    if (pendingItems.length > 0) {
+      newStatus = 'pending';
+      console.log('⏳ Has pending items → Order status: PENDING');
+    } else if (preparingItems.length > 0) {
+      newStatus = 'preparing';
+      console.log('👨‍🍳 Has preparing items → Order status: PREPARING');
+    } else if (completedItems.length === allItems.length && allItems.length > 0) {
+      newStatus = 'completed';
+      console.log('✅ ALL items completed → Order status: COMPLETED');
     }
 
-    // Only update if status changed
-    if (newOrderStatus !== order.status) {
-      order.status = newOrderStatus;
-      console.log(`🔄 Order status changed from ${order.status} to ${newOrderStatus}`);
+    // Update order status if changed (using orderStatus)
+    if (newStatus !== order.orderStatus) {
+      order.orderStatus = newStatus;
+      console.log(`🔄 Order status changed from ${order.orderStatus} to ${newStatus}`);
     }
 
     order.updatedAt = new Date();
     
-    // IMPORTANT: Save the order with the updated status
+    // Save the order
     const savedOrder = await order.save();
     
-    console.log('💾 Order saved successfully');
-    console.log('📊 Final order status:', savedOrder.status);
-    console.log('📊 Final items statuses:', savedOrder.items.map(i => ({ name: i.name, status: i.itemStatus })));
+    console.log('💾 Order saved! Final orderStatus:', savedOrder.orderStatus);
+    console.log('📊 Final items:', savedOrder.items.map(i => ({ name: i.name, status: i.itemStatus })));
 
-    // Return the updated order with the correct status
+    // Return success with updated order
     res.status(200).json({ 
       success: true,
-      message: 'Item status updated successfully', 
-      order: savedOrder,
-      orderStatus: savedOrder.status
+      message: 'Item status updated successfully',
+      order: {
+        _id: savedOrder._id,
+        billNumber: savedOrder.billNumber,
+        orderStatus: savedOrder.orderStatus,
+        status: savedOrder.orderStatus, // Also send as status for frontend compatibility
+        items: savedOrder.items.map(item => ({
+          _id: item._id,
+          name: item.name,
+          itemStatus: item.itemStatus
+        }))
+      },
+      orderStatus: savedOrder.orderStatus
     });
     
   } catch (err) {
