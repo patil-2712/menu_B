@@ -30,4 +30,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), paymentContro
 router.post('/cash-confirm/:orderId', paymentController.confirmCashPayment);
 // Add this line with other routes
 router.post('/upi-counter/:orderId', paymentController.markUpiCounterPayment);
+
+
+// Add this line with other routes
+router.post('/upi_counter-confirm/:orderId', paymentController.confirmUpiCounterPayment);
+
+
 module.exports = router;
