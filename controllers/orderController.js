@@ -824,6 +824,73 @@ exports.updateOrderStatus = async (req, res) => {
 };
 
 // =========== UPDATE ITEM STATUS ===========
+//exports.updateItemStatus = async (req, res) => {
+//  try {
+//    const { restaurantCode, billNumber } = req.params;
+//    const { itemId, itemStatus } = req.body;
+//
+//    console.log(`🔄 Updating item ${itemId} to ${itemStatus} in order ${billNumber}`);
+//
+//    if (!['pending', 'preparing', 'completed'].includes(itemStatus)) {
+//      return res.status(400).json({ error: 'Invalid item status value' });
+//    }
+//
+//    const order = await Order.findOne({ 
+//      restaurantCode, 
+//      billNumber: Number(billNumber) 
+//    });
+//    
+//    if (!order) {
+//      return res.status(404).json({ 
+//        error: `Order #${billNumber} not found for restaurant ${restaurantCode}` 
+//      });
+//    }
+//
+//    // Find and update the item
+//    const item = order.items.id(itemId);
+//    if (!item) {
+//      return res.status(404).json({ error: 'Item not found in order' });
+//    }
+//
+//    item.itemStatus = itemStatus;
+//
+//    // Recalculate order status based on ALL items
+//    const allItems = order.items;
+//    const anyPending = allItems.some(item => item.itemStatus === 'pending');
+//    const anyPreparing = allItems.some(item => item.itemStatus === 'preparing');
+//    const allCompleted = allItems.every(item => item.itemStatus === 'completed');
+//
+//    // Order status logic:
+//    // - If ANY item is pending -> order is pending (highest priority)
+//    // - Else if ANY item is preparing -> order is preparing
+//    // - Else if ALL items are completed -> order is completed
+//    if (anyPending) {
+//      order.status = 'pending';
+//    } else if (anyPreparing) {
+//      order.status = 'preparing';
+//    } else if (allCompleted) {
+//      order.status = 'completed';
+//    }
+//
+//    await order.save();
+//
+//    console.log('✅ Item status updated successfully');
+//    console.log('📊 New order status:', order.status);
+//    console.log('📊 Item statuses:', allItems.map(i => ({ name: i.name, status: i.itemStatus })));
+//
+//    res.status(200).json({ 
+//      message: 'Item status updated successfully', 
+//      order: order 
+//    });
+//  } catch (err) {
+//    console.error('Error updating item status:', err);
+//    res.status(500).json({ error: 'Failed to update item status' });
+//  }
+//};
+
+
+
+// =========== UPDATE ITEM STATUS (FIXED) ===========
 exports.updateItemStatus = async (req, res) => {
   try {
     const { restaurantCode, billNumber } = req.params;
@@ -846,13 +913,24 @@ exports.updateItemStatus = async (req, res) => {
       });
     }
 
-    // Find and update the item
-    const item = order.items.id(itemId);
-    if (!item) {
-      return res.status(404).json({ error: 'Item not found in order' });
+    console.log('📊 Current order status:', order.status);
+    console.log('📊 Current items statuses:', order.items.map(i => ({ name: i.name, status: i.itemStatus })));
+
+    // Find and update the specific item
+    let itemFound = false;
+    for (let i = 0; i < order.items.length; i++) {
+      const item = order.items[i];
+      if (item._id.toString() === itemId || item.itemId.toString() === itemId) {
+        item.itemStatus = itemStatus;
+        itemFound = true;
+        console.log(`✅ Updated item ${item.name} to ${itemStatus}`);
+        break;
+      }
     }
 
-    item.itemStatus = itemStatus;
+    if (!itemFound) {
+      return res.status(404).json({ error: 'Item not found in order' });
+    }
 
     // Recalculate order status based on ALL items
     const allItems = order.items;
@@ -860,34 +938,57 @@ exports.updateItemStatus = async (req, res) => {
     const anyPreparing = allItems.some(item => item.itemStatus === 'preparing');
     const allCompleted = allItems.every(item => item.itemStatus === 'completed');
 
+    console.log('📊 Status check:', { anyPending, anyPreparing, allCompleted });
+
     // Order status logic:
-    // - If ANY item is pending -> order is pending (highest priority)
-    // - Else if ANY item is preparing -> order is preparing
-    // - Else if ALL items are completed -> order is completed
-    if (anyPending) {
-      order.status = 'pending';
+    // - If ANY item is pending -> order status is 'pending' (highest priority)
+    // - Else if ANY item is preparing -> order status is 'preparing'
+    // - Else if ALL items are completed -> order status is 'completed'
+    let newOrderStatus = order.status;
+    
+    if (allCompleted) {
+      newOrderStatus = 'completed';
+      console.log('✅ All items completed! Setting order status to COMPLETED');
+    } else if (anyPending) {
+      newOrderStatus = 'pending';
+      console.log('⏳ Some items pending, setting order status to PENDING');
     } else if (anyPreparing) {
-      order.status = 'preparing';
-    } else if (allCompleted) {
-      order.status = 'completed';
+      newOrderStatus = 'preparing';
+      console.log('👨‍🍳 Some items preparing, setting order status to PREPARING');
     }
 
-    await order.save();
+    // Only update if status changed
+    if (newOrderStatus !== order.status) {
+      order.status = newOrderStatus;
+      console.log(`🔄 Order status changed from ${order.status} to ${newOrderStatus}`);
+    }
 
-    console.log('✅ Item status updated successfully');
-    console.log('📊 New order status:', order.status);
-    console.log('📊 Item statuses:', allItems.map(i => ({ name: i.name, status: i.itemStatus })));
+    order.updatedAt = new Date();
+    
+    // IMPORTANT: Save the order with the updated status
+    const savedOrder = await order.save();
+    
+    console.log('💾 Order saved successfully');
+    console.log('📊 Final order status:', savedOrder.status);
+    console.log('📊 Final items statuses:', savedOrder.items.map(i => ({ name: i.name, status: i.itemStatus })));
 
+    // Return the updated order with the correct status
     res.status(200).json({ 
+      success: true,
       message: 'Item status updated successfully', 
-      order: order 
+      order: savedOrder,
+      orderStatus: savedOrder.status
     });
+    
   } catch (err) {
-    console.error('Error updating item status:', err);
-    res.status(500).json({ error: 'Failed to update item status' });
+    console.error('❌ Error updating item status:', err);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to update item status',
+      message: err.message 
+    });
   }
 };
-
 // =========== GET ORDER STATISTICS ===========
 exports.getOrderStatistics = async (req, res) => {
   try {
