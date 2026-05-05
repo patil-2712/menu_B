@@ -398,82 +398,82 @@ exports.getOrderById = async (req, res) => {
 //};
 
 // =========== ADD ITEM TO ORDER ===========
-exports.addItemToOrder = async (req, res) => {
-  try {
-    const { restaurantCode, billNumber } = req.params;
-    const item = req.body;
-    
-    const order = await Order.findOne({ restaurantCode, billNumber: Number(billNumber) });
-    if (!order) {
-      return res.status(404).json({ success: false, error: 'Order not found' });
-    }
-    
-    const itemTotal = parseFloat(item.price) * parseInt(item.quantity);
-    const newItem = {
-      itemId: new mongoose.Types.ObjectId(),
-      name: item.name,
-      quantity: parseInt(item.quantity),
-      price: parseFloat(item.price),
-      category: item.category || '',
-      type: item.type || 'Veg',
-      gstPercentage: item.gstPercentage || order.gstPercentage || 18,
-      total: itemTotal,
-      itemStatus: 'pending',
-      rollNumber: order.items.length + 1
-    };
-    
-    order.items.push(newItem);
-    order.subtotal += itemTotal;
-    order.gstAmount += itemTotal * (order.gstPercentage / 100);
-    order.total = order.subtotal + order.gstAmount;
-    order.paymentStatus = 'pending';
-    order.updatedAt = new Date();
-    await order.save();
-    
-    res.status(200).json({ success: true, message: 'Item added successfully', order });
-  } catch (err) {
-    console.error('Error adding item:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+//exports.addItemToOrder = async (req, res) => {
+//  try {
+//    const { restaurantCode, billNumber } = req.params;
+//    const item = req.body;
+//    
+//    const order = await Order.findOne({ restaurantCode, billNumber: Number(billNumber) });
+//    if (!order) {
+//      return res.status(404).json({ success: false, error: 'Order not found' });
+//    }
+//    
+//    const itemTotal = parseFloat(item.price) * parseInt(item.quantity);
+//    const newItem = {
+//      itemId: new mongoose.Types.ObjectId(),
+//      name: item.name,
+//      quantity: parseInt(item.quantity),
+//      price: parseFloat(item.price),
+//      category: item.category || '',
+//      type: item.type || 'Veg',
+//      gstPercentage: item.gstPercentage || order.gstPercentage || 18,
+//      total: itemTotal,
+//      itemStatus: 'pending',
+//      rollNumber: order.items.length + 1
+//    };
+//    
+//    order.items.push(newItem);
+//    order.subtotal += itemTotal;
+//    order.gstAmount += itemTotal * (order.gstPercentage / 100);
+//    order.total = order.subtotal + order.gstAmount;
+//    order.paymentStatus = 'pending';
+//    order.updatedAt = new Date();
+//    await order.save();
+//    
+//    res.status(200).json({ success: true, message: 'Item added successfully', order });
+//  } catch (err) {
+//    console.error('Error adding item:', err);
+//    res.status(500).json({ success: false, error: err.message });
+//  }
+//};
 
 // =========== REMOVE ITEM FROM ORDER ===========
-exports.removeItemFromOrder = async (req, res) => {
-  try {
-    const { restaurantCode, billNumber, itemId } = req.params;
-    
-    const order = await Order.findOne({ restaurantCode, billNumber: Number(billNumber) });
-    if (!order) {
-      return res.status(404).json({ success: false, error: 'Order not found' });
-    }
-    
-    const itemIndex = order.items.findIndex(item => item._id.toString() === itemId || item.itemId.toString() === itemId);
-    if (itemIndex === -1) {
-      return res.status(404).json({ success: false, error: 'Item not found' });
-    }
-    
-    const itemToRemove = order.items[itemIndex];
-    const itemTotal = itemToRemove.total || (itemToRemove.price * itemToRemove.quantity);
-    
-    order.items.splice(itemIndex, 1);
-    order.subtotal -= itemTotal;
-    order.gstAmount = order.subtotal * (order.gstPercentage / 100);
-    order.total = order.subtotal + order.gstAmount;
-    
-    if (order.items.length === 0) {
-      order.orderStatus = 'cancelled';
-      order.paymentStatus = 'pending';
-    }
-    
-    order.updatedAt = new Date();
-    await order.save();
-    
-    res.status(200).json({ success: true, message: 'Item removed successfully', order });
-  } catch (err) {
-    console.error('Error removing item:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
+//exports.removeItemFromOrder = async (req, res) => {
+//  try {
+//    const { restaurantCode, billNumber, itemId } = req.params;
+//    
+//    const order = await Order.findOne({ restaurantCode, billNumber: Number(billNumber) });
+//    if (!order) {
+//      return res.status(404).json({ success: false, error: 'Order not found' });
+//    }
+//    
+//    const itemIndex = order.items.findIndex(item => item._id.toString() === itemId || item.itemId.toString() === itemId);
+//    if (itemIndex === -1) {
+//      return res.status(404).json({ success: false, error: 'Item not found' });
+//    }
+//    
+//    const itemToRemove = order.items[itemIndex];
+//    const itemTotal = itemToRemove.total || (itemToRemove.price * itemToRemove.quantity);
+//    
+//    order.items.splice(itemIndex, 1);
+//    order.subtotal -= itemTotal;
+//    order.gstAmount = order.subtotal * (order.gstPercentage / 100);
+//    order.total = order.subtotal + order.gstAmount;
+//    
+//    if (order.items.length === 0) {
+//      order.orderStatus = 'cancelled';
+//      order.paymentStatus = 'pending';
+//    }
+//    
+//    order.updatedAt = new Date();
+//    await order.save();
+//    
+//    res.status(200).json({ success: true, message: 'Item removed successfully', order });
+//  } catch (err) {
+//    console.error('Error removing item:', err);
+//    res.status(500).json({ success: false, error: err.message });
+//  }
+//};
 
 //// =========== GET ORDER BY RESTAURANT AND BILL ===========
 //exports.getOrderByRestaurantAndBill = async (req, res) => {
@@ -1199,7 +1199,7 @@ exports.applyOrderDiscount = async (req, res) => {
   }
 };
 
-// =========== ADD ITEM TO ORDER (FIXED - Updates order status) ===========
+// =========== ADD ITEM TO ORDER (COMPLETELY FIXED) ===========
 exports.addItemToOrder = async (req, res) => {
   try {
     const { restaurantCode, billNumber } = req.params;
@@ -1226,6 +1226,8 @@ exports.addItemToOrder = async (req, res) => {
       });
     }
     
+    console.log('📊 Current orderStatus:', order.orderStatus);
+    
     const itemTotal = parseFloat(item.price) * parseInt(item.quantity);
     const itemGst = itemTotal * (item.gstPercentage || order.gstPercentage || 18) / 100;
     
@@ -1249,19 +1251,11 @@ exports.addItemToOrder = async (req, res) => {
     order.gstAmount += itemGst;
     order.total = order.subtotal + order.gstAmount;
     
-    // CRITICAL: Reset order status to 'pending' because there's a new pending item
-    const anyPending = order.items.some(item => item.itemStatus === 'pending');
-    const anyPreparing = order.items.some(item => item.itemStatus === 'preparing');
-    const allCompleted = order.items.every(item => item.itemStatus === 'completed');
+    // CRITICAL: Reset orderStatus to 'pending' because there's a new pending item
+    // Using orderStatus field (NOT status)
+    order.orderStatus = 'pending';
     
-    if (anyPending) {
-      order.status = 'pending';
-      console.log('🔄 New pending item added → Order status reset to PENDING');
-    } else if (anyPreparing) {
-      order.status = 'preparing';
-    } else if (allCompleted && order.items.length > 0) {
-      order.status = 'completed';
-    }
+    console.log('🔄 New pending item added → Order status reset to PENDING');
     
     // Handle discount if any
     if (order.discount > 0) {
@@ -1275,10 +1269,11 @@ exports.addItemToOrder = async (req, res) => {
       order.discountedTotal = order.total;
     }
     
+    order.updatedAt = new Date();
     await order.save();
     
     console.log('✅ Item added successfully');
-    console.log('📊 New order status:', order.status);
+    console.log('📊 New orderStatus:', order.orderStatus);
     
     res.status(200).json({
       success: true,
@@ -1295,8 +1290,8 @@ exports.addItemToOrder = async (req, res) => {
     });
   }
 };
-
 // =========== REMOVE ITEM FROM ORDER ===========
+// =========== REMOVE ITEM FROM ORDER (FIXED) ===========
 exports.removeItemFromOrder = async (req, res) => {
   try {
     const { restaurantCode, billNumber, itemId } = req.params;
@@ -1347,15 +1342,18 @@ exports.removeItemFromOrder = async (req, res) => {
     const anyPreparing = allItems.some(item => item.itemStatus === 'preparing');
     const allCompleted = allItems.length > 0 ? allItems.every(item => item.itemStatus === 'completed') : true;
     
+    // Update orderStatus field (NOT status)
     if (allItems.length === 0) {
-      order.status = 'cancelled';
+      order.orderStatus = 'cancelled';
     } else if (anyPending) {
-      order.status = 'pending';
+      order.orderStatus = 'pending';
     } else if (anyPreparing) {
-      order.status = 'preparing';
+      order.orderStatus = 'preparing';
     } else if (allCompleted) {
-      order.status = 'completed';
+      order.orderStatus = 'completed';
     }
+    
+    console.log('📊 New orderStatus after removal:', order.orderStatus);
     
     if (order.discount > 0) {
       if (order.discountType === 'percentage') {
@@ -1371,7 +1369,6 @@ exports.removeItemFromOrder = async (req, res) => {
     await order.save();
     
     console.log('✅ Item removed successfully');
-    console.log('📊 New order status:', order.status);
     
     res.status(200).json({
       success: true,
